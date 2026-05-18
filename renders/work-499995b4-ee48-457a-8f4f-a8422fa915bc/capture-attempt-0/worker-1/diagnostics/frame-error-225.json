@@ -1,0 +1,11 @@
+{
+  "frameIndex": 225,
+  "time": 7.5,
+  "error": "Protocol error (Page.captureScreenshot): Unable to capture screenshot",
+  "stack": "ProtocolError: Protocol error (Page.captureScreenshot): Unable to capture screenshot\n    at <instance_members_initializer> (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:99:14)\n    at new Callback (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:103:16)\n    at CallbackRegistry.create (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:22:26)\n    at Connection._rawSend (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/Connection.js:104:26)\n    at CdpCDPSession.send (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/puppeteer-core/lib/esm/puppeteer/cdp/CdpSession.js:71:33)\n    at pageScreenshotCapture (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/hyperframes/dist/cli.js:28560:31)\n    at async captureFrameCore (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/hyperframes/dist/cli.js:29155:26)\n    at async captureFrame (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/hyperframes/dist/cli.js:29179:52)\n    at async executeWorkerTask (file:///C:/Users/Pulkit/AppData/Local/npm-cache/_npx/702923228c2ce1e6/node_modules/hyperframes/dist/cli.js:33107:9)\n    at async Promise.all (index 1)",
+  "browserConsoleTail": [
+    "[Browser:WARN] The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://goo.gl/7K7WLu",
+    "[Browser:WARN] WebGL: CONTEXT_LOST_WEBGL: loseContext: context lost",
+    "[Browser] THREE.WebGLRenderer: Context Lost."
+  ]
+}
