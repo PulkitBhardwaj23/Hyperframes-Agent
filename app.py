@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 import re
+import subprocess
 from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from langchain_groq import ChatGroq
@@ -10,7 +11,7 @@ from langchain_core.messages import HumanMessage
 # ==========================================
 # 1. DIRECTORY SETUP
 # ==========================================
-TEMPLATES_DIR = "templates"
+TEMPLATES_DIR = "templates" 
 AUDIO_DIR = "audio"
 OUTPUT_DIR = "output"
 
@@ -19,7 +20,7 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Retrieve API key dynamically
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.1, max_tokens=8000, api_key=GROQ_API_KEY)
 
 # ==========================================
@@ -28,6 +29,9 @@ llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.1, max_tokens=8000
 def load_catalog():
     """Scans the /template folder and builds a JSON catalog for the LLM."""
     catalog = []
+    if not os.path.exists(TEMPLATES_DIR):
+        return catalog
+        
     for folder in os.listdir(TEMPLATES_DIR):
         config_path = os.path.join(TEMPLATES_DIR, folder, "config.json")
         if os.path.exists(config_path):
@@ -56,6 +60,7 @@ def get_template_html(template_id):
         return f.read()
 
 def extract_html(text: str) -> str:
+    """Safely extracts HTML from LLM output."""
     if not text: return ""
     start_idx = text.lower().find("<!doctype")
     if start_idx == -1: start_idx = text.lower().find("<html")
@@ -70,6 +75,8 @@ def extract_html(text: str) -> str:
 
 def get_audio_files():
     """Lists all .mp3 files in the audio folder."""
+    if not os.path.exists(AUDIO_DIR):
+        return []
     return [f for f in os.listdir(AUDIO_DIR) if f.endswith('.mp3')]
 
 # ==========================================
@@ -101,15 +108,16 @@ def select_design_node(state: GraphState) -> GraphState:
     return {**state, "selected_template_id": clean_id}
 
 def fit_content_node(state: GraphState) -> GraphState:
+    # UPDATED STRICT PROMPT
     prompt = f"""
-    You are an expert Frontend Developer.
+    You are an expert Copywriter and Frontend Developer.
     PRODUCT INFO: {state['product_info']}
     
     INSTRUCTIONS: 
-    1. Inject ad copy into the BASE TEMPLATE based on the product info.
-    2. Do NOT touch image `src` tags.
-    3. Keep text concise to fit bounding boxes.
-    4. DO NOT TRUNCATE. Output the entire HTML from <!DOCTYPE html> to </html>.
+    1. Replace EVERY single placeholder in brackets like [BRAND_NAME], [SCENE_1_TITLE], [SCENE_3_SPEC_1_LABEL] inside the BASE TEMPLATE with real ad copy based on the PRODUCT INFO.
+    2. For placeholders ending in _ICON (e.g., [SCENE_3_SPEC_1_ICON]), use exactly ONE relevant emoji (e.g., 🚀, 🛡️, ⚡).
+    3. DO NOT alter any HTML tags, CSS, GSAP scripts, or `src="..."` attributes. Leave media alone.
+    4. CRITICAL: Output the entire, fully complete HTML code. Do NOT truncate. Do NOT add explanations.
     
     BASE TEMPLATE:
     ```html
@@ -119,9 +127,14 @@ def fit_content_node(state: GraphState) -> GraphState:
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
         clean_html = extract_html(response.content)
-        if len(clean_html) < 500: clean_html = state['base_html']
-    except Exception:
-        clean_html = state['base_html']
+        
+        # STRICT VALIDATION: If the AI truncates, we throw a hard error instead of using the blank template.
+        if len(clean_html) < len(state['base_html']) * 0.5:
+            return {**state, "final_html": "ERROR: The AI generated truncated code. Please click Compile again."}
+            
+    except Exception as e:
+        return {**state, "final_html": f"ERROR: API Connection Failed. {str(e)}"}
+        
     return {**state, "final_html": clean_html}
 
 workflow = StateGraph(GraphState)
@@ -163,7 +176,14 @@ if st.session_state.phase == 1:
             st.error("⚠️ Please enter the product description.")
         else:
             with st.spinner("🤖 AI is analyzing the catalog for the best fit..."):
-                state = {"product_info": product_info, "constraints": constraints, "catalog": json.dumps(catalog_list), "selected_template_id": "", "base_html": "", "final_html": ""}
+                state = {
+                    "product_info": product_info, 
+                    "constraints": constraints, 
+                    "catalog": json.dumps(catalog_list), 
+                    "selected_template_id": "", 
+                    "base_html": "", 
+                    "final_html": ""
+                }
                 result = select_design_node(state)
                 
                 selected_id = result["selected_template_id"]
@@ -215,23 +235,31 @@ elif st.session_state.phase == 2:
             if missing_files:
                 st.error(f"⚠️ Please upload missing files: {', '.join(missing_files)}")
             else:
-                import subprocess
-                
                 with st.spinner("🤖 1/3: AI is writing the GSAP/HTML Code..."):
-                    # Save images
+                    # Save user media directly to the output folder
                     for file_name, file_obj in uploaded_assets.items():
                         with open(os.path.join(OUTPUT_DIR, file_name), "wb") as f:
                             f.write(file_obj.getbuffer())
                             
-                    # Generate HTML
+                    # Trigger the LLM to write the copy
                     base_html = get_template_html(t_id)
                     state = {
                         "product_info": st.session_state.product_info,
-                        "constraints": "", "catalog": "", "selected_template_id": t_id,
-                        "base_html": base_html, "final_html": ""
+                        "constraints": "", 
+                        "catalog": "", 
+                        "selected_template_id": t_id,
+                        "base_html": base_html, 
+                        "final_html": ""
                     }
                     result = fit_content_node(state)
                     
+                    # --- THE HARD STOP SAFETY NET ---
+                    # If the AI failed, stop the app immediately. No broken renders.
+                    if result["final_html"].startswith("ERROR:"):
+                        st.error(result["final_html"])
+                        st.stop()
+                    
+                    # Save the successfully injected HTML to the output folder
                     final_html_path = os.path.join(OUTPUT_DIR, "index.html")
                     with open(final_html_path, "w", encoding="utf-8") as f:
                         f.write(result["final_html"])
